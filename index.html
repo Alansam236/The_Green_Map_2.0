@@ -2,8 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.3</title>
-
+<title>The Green Map 3.4</title>
 <link rel="icon" href="data:,">
 
 <!-- Leaflet CSS -->
@@ -20,13 +19,12 @@
     position: absolute;
     bottom: 10px;
     left: 10px;
-    width: 220px;
+    width: 240px;
     z-index: 1000;
     background: white;
     padding: 8px 10px;
     border-radius: 6px;
-    box-shadow: 0 0 6px rgba(0,0,0,0.3);
-    font-family: Arial;
+    box-shadow: 0 0 6px rgba(0,0,0,0.35);
   }
   .control-panel select,
   .control-panel input {
@@ -35,11 +33,21 @@
     padding: 4px;
     box-sizing: border-box;
   }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0;
+  }
 </style>
 </head>
 <body>
 
 <div class="control-panel">
+  <div class="toggle-row">
+    <input type="checkbox" id="clusterToggle" checked>
+    <label for="clusterToggle">Enable Clustering</label>
+  </div>
   <input type="text" id="searchBox" placeholder="Search..." />
   <select id="cityFilter"><option value="all">All Cities</option></select>
   <select id="companyFilter"><option value="all">All Companies</option></select>
@@ -64,28 +72,29 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  // Initialize global map
   const map = L.map('map').setView([20, 0], 2);
 
-  // English city names tiles
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    attribution: '&copy; OSM & CARTO',
     subdomains: 'abcd',
     maxZoom: 19
   }).addTo(map);
 
-  const markerCluster = L.markerClusterGroup().addTo(map);
+  let markerCluster = L.markerClusterGroup();
+  map.addLayer(markerCluster);
+
   const allMarkers = [];
   const filters = {
-    city: document.getElementById("cityFilter"),
-    company: document.getElementById("companyFilter"),
-    category: document.getElementById("categoryFilter"),
-    status: document.getElementById("statusFilter"),
-    year: document.getElementById("yearFilter"),
-    poc: document.getElementById("pocFilter"),
-    team: document.getElementById("teamFilter"),
+    City: document.getElementById("cityFilter"),
+    Company: document.getElementById("companyFilter"),
+    Category: document.getElementById("categoryFilter"),
+    Status: document.getElementById("statusFilter"),
+    Year: document.getElementById("yearFilter"),
+    PoC: document.getElementById("pocFilter"),
+    Team: document.getElementById("teamFilter"),
   };
   const searchBox = document.getElementById("searchBox");
+  const clusterToggle = document.getElementById("clusterToggle");
 
   const statusColors = {
     "completed": "green",
@@ -100,115 +109,96 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   async function loadExcel() {
-    try {
-      const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet);
-      console.log(`Loaded ${rows.length} rows`);
+    const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
 
-      const uniqueValues = {
-        city: new Set(),
-        company: new Set(),
-        category: new Set(),
-        status: new Set(),
-        year: new Set(),
-        poc: new Set(),
-        team: new Set()
+    const unique = {City: new Set(), Company: new Set(), Category: new Set(), Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()};
+
+    rows.forEach(row => {
+      const lat = parseFloat(row.Latitude);
+      const lon = parseFloat(row.Longitude);
+      if (isNaN(lat) || isNaN(lon)) return;
+
+      const data = {
+        City: (row.City || "").trim(),
+        Company: (row["Company Name"] || "").trim(),
+        Category: (row.Category || "").trim(),
+        Status: (row.Status || "").trim(),
+        Year: (row.Year || "").trim(),
+        PoC: (row.PoC || "").trim(),
+        Team: (row.Team || "").trim()
       };
 
-      rows.forEach(r => {
-        const lat = parseFloat(r.Latitude);
-        const lon = parseFloat(r.Longitude);
-        if (isNaN(lat) || isNaN(lon)) return;
+      const marker = L.circleMarker([lat, lon], {
+        radius: 8,
+        fillOpacity: 0.9,
+        color: statusColors[data.Status.toLowerCase()] || "black"
+      }).bindPopup(`
+        <b>${data.Company}</b><br>
+        <b>City:</b> ${data.City}<br>
+        <b>Category:</b> ${data.Category}<br>
+        <b>Status:</b> ${data.Status}<br>
+        <b>Year:</b> ${data.Year}<br>
+        <b>PoC:</b> ${data.PoC}<br>
+        <b>Team:</b> ${data.Team}
+      `);
 
-        const City = (r.City || "").toString().trim();
-        const Company = (r["Company Name"] || "").toString().trim();
-        const Category = (r.Category || "Other").toString().trim();
-        const Status = (r.Status || "").toString().trim();
-        const Year = (r.Year || "").toString().trim();
-        const PoC = (r.PoC || "").toString().trim();
-        const Team = (r.Team || "").toString().trim();
+      marker.data = data;
+      allMarkers.push(marker);
+      markerCluster.addLayer(marker);
 
-        const color = statusColors[Status.toLowerCase()] || "black";
-
-        const marker = L.circleMarker([lat, lon], {
-          radius: 8,
-          fillOpacity: 0.9,
-          color: color
-        }).bindPopup(`
-          <b>${Company}</b><br>
-          <b>City:</b> ${City}<br>
-          <b>Category:</b> ${Category}<br>
-          <b>Status:</b> ${Status}<br>
-          <b>Year:</b> ${Year}<br>
-          <b>PoC:</b> ${PoC}<br>
-          <b>Team:</b> ${Team}
-        `);
-
-        marker.data = {City, Company, Category, Status, Year, PoC, Team};
-        allMarkers.push(marker);
-        markerCluster.addLayer(marker);
-
-        // Collect unique filter values
-        uniqueValues.city.add(City);
-        uniqueValues.company.add(Company);
-        uniqueValues.category.add(Category);
-        uniqueValues.status.add(Status);
-        uniqueValues.year.add(Year);
-        uniqueValues.poc.add(PoC);
-        uniqueValues.team.add(Team);
-      });
-
-      // Populate dropdowns (trimmed)
-      Object.keys(filters).forEach(key => {
-        const set = uniqueValues[key];
-        const dropdown = filters[key];
-        [...set].sort().forEach(val => {
-          val = val.toString().trim();
-          if (val && val !== "") {
-            const opt = document.createElement("option");
-            opt.value = val;
-            opt.textContent = val;
-            dropdown.appendChild(opt);
-          }
-        });
-      });
-
-    } catch (err) {
-      console.error("❌ EXCEL LOADING ERROR:", err);
-    }
-  }
-
-  // Apply filters (robust includes-based)
-  function applyFilters() {
-    const searchText = (searchBox.value || "").toLowerCase();
-    const selectedFilters = {};
-    Object.keys(filters).forEach(key => {
-      selectedFilters[key] = (filters[key].value || "").toLowerCase().trim();
+      Object.keys(unique).forEach(k => unique[k].add(data[k]));
     });
 
-    markerCluster.clearLayers();
+    Object.keys(filters).forEach(k => {
+      [...unique[k]].sort().forEach(v => {
+        if (!v) return;
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        filters[k].appendChild(opt);
+      });
+    });
+  }
+
+  function applyFilters() {
+    if (clusterToggle.checked) markerCluster.clearLayers();
+    const searchText = searchBox.value.toLowerCase();
 
     allMarkers.forEach(marker => {
       const d = marker.data;
-      let show = true;
+      let visible = true;
 
-      Object.keys(selectedFilters).forEach(key => {
-        if (selectedFilters[key] !== "all" && !((d[key] || "").toString().toLowerCase().includes(selectedFilters[key]))) {
-          show = false;
-        }
+      Object.keys(filters).forEach(k => {
+        const selected = filters[k].value;
+        if (selected !== "all" && d[k] !== selected) visible = false;
       });
 
-      const combinedText = Object.values(d).map(v => (v||"").toString().toLowerCase()).join(" ");
-      if (searchText && !combinedText.includes(searchText)) show = false;
+      if (searchText && !Object.values(d).join(" ").toLowerCase().includes(searchText))
+        visible = false;
 
-      if (show) markerCluster.addLayer(marker);
+      if (visible) {
+        if (clusterToggle.checked)
+          markerCluster.addLayer(marker);
+        else
+          marker.addTo(map);
+      } else {
+        map.removeLayer(marker);
+      }
     });
   }
 
   Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
   searchBox.addEventListener("input", applyFilters);
+
+  clusterToggle.addEventListener("change", () => {
+    markerCluster.clearLayers();
+    allMarkers.forEach(m => map.removeLayer(m)); // reset
+    if (clusterToggle.checked) map.addLayer(markerCluster);
+    applyFilters();
+  });
 
   loadExcel();
 });
