@@ -4,16 +4,12 @@
   <meta charset="UTF-8" />
   <title>The Green Map 2.0</title>
 
-  <!-- Favicon fix (prevents 404 error) -->
+  <!-- Prevent favicon error -->
   <link rel="icon" href="data:,">
 
   <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tYgCib8H8R2K1JtvG/3s="
-    crossorigin=""
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
   <style>
     #map { height: 100vh; width: 100vw; }
   </style>
@@ -22,18 +18,13 @@
 
   <div id="map"></div>
 
-  <!-- Leaflet JS MUST load before your map script -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j7kGStpXIX6LIV06D4XBkXH7YVZ1JpqtG/6C1Zk="
-    crossorigin="">
-  </script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Your script should load LAST -->
+  <!-- Map init script -->
   <script>
     console.log("JS loaded, map initializing...");
 
-    // Initialize map safely after Leaflet is available
     document.addEventListener("DOMContentLoaded", () => {
       const map = L.map('map').setView([20.5937, 78.9629], 5);
 
