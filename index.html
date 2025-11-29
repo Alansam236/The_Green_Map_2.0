@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.2</title>
+<title>The Green Map 3.3</title>
 
 <link rel="icon" href="data:,">
 
@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize global map
   const map = L.map('map').setView([20, 0], 2);
 
-  // Use English city names tiles (Carto Light)
+  // English city names tiles
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
@@ -99,7 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
-  // Load Excel dataset
   async function loadExcel() {
     try {
       const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
@@ -151,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
         allMarkers.push(marker);
         markerCluster.addLayer(marker);
 
-        // collect unique filter values
+        // Collect unique filter values
         uniqueValues.city.add(City);
         uniqueValues.company.add(Company);
         uniqueValues.category.add(Category);
@@ -161,11 +160,12 @@ document.addEventListener("DOMContentLoaded", () => {
         uniqueValues.team.add(Team);
       });
 
-      // Populate dropdowns
+      // Populate dropdowns (trimmed)
       Object.keys(filters).forEach(key => {
         const set = uniqueValues[key];
         const dropdown = filters[key];
         [...set].sort().forEach(val => {
+          val = val.toString().trim();
           if (val && val !== "") {
             const opt = document.createElement("option");
             opt.value = val;
@@ -180,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Apply all filters + search
+  // Apply filters (robust includes-based)
   function applyFilters() {
     const searchText = (searchBox.value || "").toLowerCase();
     const selectedFilters = {};
@@ -194,14 +194,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const d = marker.data;
       let show = true;
 
-      // column filters
       Object.keys(selectedFilters).forEach(key => {
-        if (selectedFilters[key] !== "all" && ((d[key] || "").toString().trim().toLowerCase() !== selectedFilters[key])) {
+        if (selectedFilters[key] !== "all" && !((d[key] || "").toString().toLowerCase().includes(selectedFilters[key]))) {
           show = false;
         }
       });
 
-      // search filter
       const combinedText = Object.values(d).map(v => (v||"").toString().toLowerCase()).join(" ");
       if (searchText && !combinedText.includes(searchText)) show = false;
 
