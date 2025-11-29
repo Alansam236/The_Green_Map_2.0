@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.5</title>
+<title>The Green Map 3.6</title>
 <link rel="icon" href="data:,">
 
 <!-- Leaflet CSS -->
@@ -37,7 +37,6 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 5px;
   }
 </style>
 </head>
@@ -123,13 +122,14 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isNaN(lat) || isNaN(lon)) return;
 
       const data = {
-        City: String(row.City || "").trim(),
-        Company: String(row["Company Name"] || "").trim(),
-        Category: String(row.Category || "").trim(),
-        Status: String(row.Status || "").trim(),
-        Year: String(row.Year || "").trim(),
-        PoC: String(row.PoC || "").trim(),
-        Team: String(row.Team || "").trim()
+        City: String(row.City ?? "").trim(),
+        Company: String(row["Company Name"] ?? "").trim(),
+        Category: String(row.Category ?? "").trim(),
+        Status: String(row.Status ?? "").trim(),
+        Remark: String(row.Remark ?? "").trim(),      // 🆕 ADDED
+        PoC: String(row.PoC ?? "").trim(),
+        Year: String(row.Year ?? "").trim(),
+        Team: String(row.Team ?? "").trim()
       };
 
       const marker = L.circleMarker([lat, lon], {
@@ -141,6 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <b>City:</b> ${data.City}<br>
         <b>Category:</b> ${data.Category}<br>
         <b>Status:</b> ${data.Status}<br>
+        <b>Remark:</b> ${data.Remark}<br>
         <b>Year:</b> ${data.Year}<br>
         <b>PoC:</b> ${data.PoC}<br>
         <b>Team:</b> ${data.Team}
