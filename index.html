@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.1</title>
+<title>The Green Map 3.2</title>
 
 <link rel="icon" href="data:,">
 
@@ -18,9 +18,9 @@
   #map { height: 100vh; width: 100vw; }
   .control-panel {
     position: absolute;
-    bottom: 10px;      /* left-bottom corner */
+    bottom: 10px;
     left: 10px;
-    width: 220px;      /* compact width */
+    width: 220px;
     z-index: 1000;
     background: white;
     padding: 8px 10px;
@@ -64,7 +64,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  // Initialize map (global view)
+  // Initialize global map
   const map = L.map('map').setView([20, 0], 2);
 
   // Use English city names tiles (Carto Light)
@@ -99,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
+  // Load Excel dataset
   async function loadExcel() {
     try {
       const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
@@ -122,13 +123,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const lon = parseFloat(r.Longitude);
         if (isNaN(lat) || isNaN(lon)) return;
 
-        const City = r.City || "";
-        const Company = r["Company Name"] || "";
-        const Category = r.Category || "Other";
-        const Status = r.Status || "";
-        const Year = r.Year || "";
-        const PoC = r.PoC || "";
-        const Team = r.Team || "";
+        const City = (r.City || "").toString().trim();
+        const Company = (r["Company Name"] || "").toString().trim();
+        const Category = (r.Category || "Other").toString().trim();
+        const Status = (r.Status || "").toString().trim();
+        const Year = (r.Year || "").toString().trim();
+        const PoC = (r.PoC || "").toString().trim();
+        const Team = (r.Team || "").toString().trim();
 
         const color = statusColors[Status.toLowerCase()] || "black";
 
@@ -179,11 +180,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Apply all filters + search
   function applyFilters() {
-    const searchText = searchBox.value.toLowerCase();
+    const searchText = (searchBox.value || "").toLowerCase();
     const selectedFilters = {};
     Object.keys(filters).forEach(key => {
-      selectedFilters[key] = filters[key].value.toLowerCase();
+      selectedFilters[key] = (filters[key].value || "").toLowerCase().trim();
     });
 
     markerCluster.clearLayers();
@@ -194,13 +196,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // column filters
       Object.keys(selectedFilters).forEach(key => {
-        if (selectedFilters[key] !== "all" && (d[key] || "").toLowerCase() !== selectedFilters[key]) {
+        if (selectedFilters[key] !== "all" && ((d[key] || "").toString().trim().toLowerCase() !== selectedFilters[key])) {
           show = false;
         }
       });
 
       // search filter
-      const combinedText = Object.values(d).join(" ").toLowerCase();
+      const combinedText = Object.values(d).map(v => (v||"").toString().toLowerCase()).join(" ");
       if (searchText && !combinedText.includes(searchText)) show = false;
 
       if (show) markerCluster.addLayer(marker);
