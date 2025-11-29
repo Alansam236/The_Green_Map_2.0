@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.0</title>
+<title>The Green Map 3.1</title>
 
 <link rel="icon" href="data:,">
 
@@ -18,18 +18,22 @@
   #map { height: 100vh; width: 100vw; }
   .control-panel {
     position: absolute;
-    top: 10px;
+    bottom: 10px;      /* left-bottom corner */
     left: 10px;
+    width: 220px;      /* compact width */
     z-index: 1000;
     background: white;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-radius: 6px;
     box-shadow: 0 0 6px rgba(0,0,0,0.3);
+    font-family: Arial;
   }
-  .control-panel select, .control-panel input {
-    margin: 4px 0;
+  .control-panel select,
+  .control-panel input {
     width: 100%;
+    margin: 4px 0;
     padding: 4px;
+    box-sizing: border-box;
   }
 </style>
 </head>
@@ -62,9 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize map (global view)
   const map = L.map('map').setView([20, 0], 2);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors",
+
+  // Use English city names tiles (Carto Light)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
   }).addTo(map);
 
   const markerCluster = L.markerClusterGroup().addTo(map);
@@ -80,7 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   const searchBox = document.getElementById("searchBox");
 
-  // Status color mapping
   const statusColors = {
     "completed": "green",
     "registered": "blue",
@@ -93,7 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
-  // Load Excel dataset
   async function loadExcel() {
     try {
       const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
@@ -145,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
         allMarkers.push(marker);
         markerCluster.addLayer(marker);
 
-        // Collect unique filter values
+        // collect unique filter values
         uniqueValues.city.add(City);
         uniqueValues.company.add(Company);
         uniqueValues.category.add(Category);
@@ -155,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
         uniqueValues.team.add(Team);
       });
 
-      // Populate filter dropdowns
+      // Populate dropdowns
       Object.keys(filters).forEach(key => {
         const set = uniqueValues[key];
         const dropdown = filters[key];
@@ -174,7 +179,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Apply all filters + search
   function applyFilters() {
     const searchText = searchBox.value.toLowerCase();
     const selectedFilters = {};
@@ -188,14 +192,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const d = marker.data;
       let show = true;
 
-      // Column filters
+      // column filters
       Object.keys(selectedFilters).forEach(key => {
         if (selectedFilters[key] !== "all" && (d[key] || "").toLowerCase() !== selectedFilters[key]) {
           show = false;
         }
       });
 
-      // Search filter
+      // search filter
       const combinedText = Object.values(d).join(" ").toLowerCase();
       if (searchText && !combinedText.includes(searchText)) show = false;
 
@@ -203,7 +207,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Event listeners
   Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
   searchBox.addEventListener("input", applyFilters);
 
