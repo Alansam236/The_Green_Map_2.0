@@ -1,33 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>The Green Map 2.0</title>
+<meta charset="UTF-8">
+<title>The Green Map 2.0</title>
 
-  <!-- Prevent favicon 404 -->
-  <link rel="icon" href="data:,">
+<link rel="icon" href="data:,">
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <!-- MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<!-- MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
-  <style>
-    #map { height: 100vh; width: 100vw; }
-    .filter-box {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      padding: 6px 10px;
-      background: white;
-      border-radius: 5px;
-      box-shadow: 0 0 6px rgba(0,0,0,0.3);
-      z-index: 1000;
-      font-family: Arial;
-    }
-  </style>
+<style>
+#map { height: 100vh; width: 100vw; }
+.filter-box {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 6px 10px;
+  background: white;
+  border-radius: 5px;
+  box-shadow: 0 0 6px rgba(0,0,0,0.3);
+  z-index: 1000;
+  font-family: Arial;
+}
+</style>
 </head>
 <body>
 
@@ -46,14 +45,13 @@
 <!-- MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<!-- SheetJS (Excel reader) -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+<!-- SheetJS (official CDN) -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   console.log("JS loaded, map initializing...");
 
-  // Initialize map
   const map = L.map('map').setView([20.5937, 78.9629], 5);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -64,7 +62,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const allMarkers = [];
   const categoryDropdown = document.getElementById("categoryFilter");
 
-  // Status color mapping
   const statusColors = {
     "completed": "green",
     "registered": "blue",
@@ -77,7 +74,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
-  // Load Excel dataset
   async function loadExcel() {
     try {
       const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
@@ -123,7 +119,6 @@ document.addEventListener("DOMContentLoaded", () => {
         categorySet.add(Category);
       });
 
-      // Populate category dropdown
       [...categorySet].sort().forEach(cat => {
         const opt = document.createElement("option");
         opt.value = cat;
@@ -136,7 +131,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Filter markers by category
   categoryDropdown.addEventListener("change", () => {
     const selected = categoryDropdown.value;
     markerCluster.clearLayers();
