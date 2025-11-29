@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.4</title>
+<title>The Green Map 3.5</title>
 <link rel="icon" href="data:,">
 
 <!-- Leaflet CSS -->
@@ -22,22 +22,22 @@
     width: 240px;
     z-index: 1000;
     background: white;
-    padding: 8px 10px;
-    border-radius: 6px;
-    box-shadow: 0 0 6px rgba(0,0,0,0.35);
+    padding: 10px 12px;
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.32);
   }
   .control-panel select,
   .control-panel input {
     width: 100%;
     margin: 4px 0;
-    padding: 4px;
+    padding: 5px;
     box-sizing: border-box;
   }
   .toggle-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin: 6px 0;
+    margin-bottom: 5px;
   }
 </style>
 </head>
@@ -46,8 +46,9 @@
 <div class="control-panel">
   <div class="toggle-row">
     <input type="checkbox" id="clusterToggle" checked>
-    <label for="clusterToggle">Enable Clustering</label>
+    <label for="clusterToggle"><b>Enable Clustering</b></label>
   </div>
+
   <input type="text" id="searchBox" placeholder="Search..." />
   <select id="cityFilter"><option value="all">All Cities</option></select>
   <select id="companyFilter"><option value="all">All Companies</option></select>
@@ -72,11 +73,11 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  const map = L.map('map').setView([20, 0], 2);
+  const map = L.map("map").setView([20, 0], 2);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OSM & CARTO',
-    subdomains: 'abcd',
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OSM & CARTO",
+    subdomains: "abcd",
     maxZoom: 19
   }).addTo(map);
 
@@ -91,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
     Status: document.getElementById("statusFilter"),
     Year: document.getElementById("yearFilter"),
     PoC: document.getElementById("pocFilter"),
-    Team: document.getElementById("teamFilter"),
+    Team: document.getElementById("teamFilter")
   };
   const searchBox = document.getElementById("searchBox");
   const clusterToggle = document.getElementById("clusterToggle");
@@ -114,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
-    const unique = {City: new Set(), Company: new Set(), Category: new Set(), Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()};
+    const uniqueValues = {City: new Set(), Company: new Set(), Category: new Set(), Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()};
 
     rows.forEach(row => {
       const lat = parseFloat(row.Latitude);
@@ -122,13 +123,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isNaN(lat) || isNaN(lon)) return;
 
       const data = {
-        City: (row.City || "").trim(),
-        Company: (row["Company Name"] || "").trim(),
-        Category: (row.Category || "").trim(),
-        Status: (row.Status || "").trim(),
-        Year: (row.Year || "").trim(),
-        PoC: (row.PoC || "").trim(),
-        Team: (row.Team || "").trim()
+        City: String(row.City || "").trim(),
+        Company: String(row["Company Name"] || "").trim(),
+        Category: String(row.Category || "").trim(),
+        Status: String(row.Status || "").trim(),
+        Year: String(row.Year || "").trim(),
+        PoC: String(row.PoC || "").trim(),
+        Team: String(row.Team || "").trim()
       };
 
       const marker = L.circleMarker([lat, lon], {
@@ -149,43 +150,41 @@ document.addEventListener("DOMContentLoaded", () => {
       allMarkers.push(marker);
       markerCluster.addLayer(marker);
 
-      Object.keys(unique).forEach(k => unique[k].add(data[k]));
+      Object.keys(uniqueValues).forEach(k => uniqueValues[k].add(data[k]));
     });
 
     Object.keys(filters).forEach(k => {
-      [...unique[k]].sort().forEach(v => {
-        if (!v) return;
+      Array.from(uniqueValues[k]).sort().forEach(val => {
+        if (!val) return;
         const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
+        opt.value = val;
+        opt.textContent = val;
         filters[k].appendChild(opt);
       });
     });
   }
 
   function applyFilters() {
-    if (clusterToggle.checked) markerCluster.clearLayers();
+    markerCluster.clearLayers();
+    allMarkers.forEach(m => map.removeLayer(m));
+
     const searchText = searchBox.value.toLowerCase();
 
     allMarkers.forEach(marker => {
       const d = marker.data;
       let visible = true;
 
-      Object.keys(filters).forEach(k => {
-        const selected = filters[k].value;
-        if (selected !== "all" && d[k] !== selected) visible = false;
+      Object.keys(filters).forEach(key => {
+        const selected = filters[key].value;
+        if (selected !== "all" && d[key] !== selected) visible = false;
       });
 
       if (searchText && !Object.values(d).join(" ").toLowerCase().includes(searchText))
         visible = false;
 
       if (visible) {
-        if (clusterToggle.checked)
-          markerCluster.addLayer(marker);
-        else
-          marker.addTo(map);
-      } else {
-        map.removeLayer(marker);
+        if (clusterToggle.checked) markerCluster.addLayer(marker);
+        else marker.addTo(map);
       }
     });
   }
@@ -195,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   clusterToggle.addEventListener("change", () => {
     markerCluster.clearLayers();
-    allMarkers.forEach(m => map.removeLayer(m)); // reset
+    allMarkers.forEach(m => map.removeLayer(m));
     if (clusterToggle.checked) map.addLayer(markerCluster);
     applyFilters();
   });
@@ -203,6 +202,5 @@ document.addEventListener("DOMContentLoaded", () => {
   loadExcel();
 });
 </script>
-
 </body>
 </html>
