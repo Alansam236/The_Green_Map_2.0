@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.6</title>
+<title>The Green Map 3.7</title>
 <link rel="icon" href="data:,">
 
 <!-- Leaflet CSS -->
@@ -13,8 +13,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
 <style>
-  body { margin: 0; padding: 0; font-family: Arial; }
+  body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
   #map { height: 100vh; width: 100vw; }
+
   .control-panel {
     position: absolute;
     bottom: 10px;
@@ -22,27 +23,30 @@
     width: 240px;
     z-index: 1000;
     background: white;
-    padding: 10px 12px;
+    padding: 10px;
     border-radius: 8px;
-    box-shadow: 0 0 8px rgba(0,0,0,0.32);
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
   }
   .control-panel select,
   .control-panel input {
     width: 100%;
     margin: 4px 0;
     padding: 5px;
-    box-sizing: border-box;
   }
+
   .toggle-row {
     display: flex;
     align-items: center;
     gap: 6px;
+    font-size: 14px;
+    margin-bottom: 6px;
   }
 </style>
 </head>
 <body>
 
 <div class="control-panel">
+
   <div class="toggle-row">
     <input type="checkbox" id="clusterToggle" checked>
     <label for="clusterToggle"><b>Enable Clustering</b></label>
@@ -56,6 +60,7 @@
   <select id="yearFilter"><option value="all">All Years</option></select>
   <select id="pocFilter"><option value="all">All PoCs</option></select>
   <select id="teamFilter"><option value="all">All Teams</option></select>
+
 </div>
 
 <div id="map"></div>
@@ -84,6 +89,9 @@ document.addEventListener("DOMContentLoaded", () => {
   map.addLayer(markerCluster);
 
   const allMarkers = [];
+  const searchBox = document.getElementById("searchBox");
+  const clusterToggle = document.getElementById("clusterToggle");
+
   const filters = {
     City: document.getElementById("cityFilter"),
     Company: document.getElementById("companyFilter"),
@@ -93,8 +101,6 @@ document.addEventListener("DOMContentLoaded", () => {
     PoC: document.getElementById("pocFilter"),
     Team: document.getElementById("teamFilter")
   };
-  const searchBox = document.getElementById("searchBox");
-  const clusterToggle = document.getElementById("clusterToggle");
 
   const statusColors = {
     "completed": "green",
@@ -114,7 +120,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
-    const uniqueValues = {City: new Set(), Company: new Set(), Category: new Set(), Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()};
+    const uniqueValues = {
+      City: new Set(), Company: new Set(), Category: new Set(),
+      Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()
+    };
 
     rows.forEach(row => {
       const lat = parseFloat(row.Latitude);
@@ -126,7 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
         Company: String(row["Company Name"] ?? "").trim(),
         Category: String(row.Category ?? "").trim(),
         Status: String(row.Status ?? "").trim(),
-        Remark: String(row.Remark ?? "").trim(),      // 🆕 ADDED
+        Remark: String(row.Remark ?? "").trim(), // Popup only
         PoC: String(row.PoC ?? "").trim(),
         Year: String(row.Year ?? "").trim(),
         Team: String(row.Team ?? "").trim()
@@ -151,11 +160,13 @@ document.addEventListener("DOMContentLoaded", () => {
       allMarkers.push(marker);
       markerCluster.addLayer(marker);
 
-      Object.keys(uniqueValues).forEach(k => uniqueValues[k].add(data[k]));
+      ["City","Company","Category","Status","Year","PoC","Team"].forEach(k =>
+        uniqueValues[k].add(data[k])
+      );
     });
 
     Object.keys(filters).forEach(k => {
-      Array.from(uniqueValues[k]).sort().forEach(val => {
+      [...uniqueValues[k]].sort().forEach(val => {
         if (!val) return;
         const opt = document.createElement("option");
         opt.value = val;
