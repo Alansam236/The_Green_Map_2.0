@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 2.0</title>
+<title>The Green Map 3.0</title>
 
 <link rel="icon" href="data:,">
 
@@ -14,27 +14,36 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
 <style>
-#map { height: 100vh; width: 100vw; }
-.filter-box {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  padding: 6px 10px;
-  background: white;
-  border-radius: 5px;
-  box-shadow: 0 0 6px rgba(0,0,0,0.3);
-  z-index: 1000;
-  font-family: Arial;
-}
+  body { margin: 0; padding: 0; font-family: Arial; }
+  #map { height: 100vh; width: 100vw; }
+  .control-panel {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+  }
+  .control-panel select, .control-panel input {
+    margin: 4px 0;
+    width: 100%;
+    padding: 4px;
+  }
 </style>
 </head>
 <body>
 
-<div class="filter-box">
-  <label><b>Filter by Category:</b></label>
-  <select id="categoryFilter">
-    <option value="all">All</option>
-  </select>
+<div class="control-panel">
+  <input type="text" id="searchBox" placeholder="Search..." />
+  <select id="cityFilter"><option value="all">All Cities</option></select>
+  <select id="companyFilter"><option value="all">All Companies</option></select>
+  <select id="categoryFilter"><option value="all">All Categories</option></select>
+  <select id="statusFilter"><option value="all">All Statuses</option></select>
+  <select id="yearFilter"><option value="all">All Years</option></select>
+  <select id="pocFilter"><option value="all">All PoCs</option></select>
+  <select id="teamFilter"><option value="all">All Teams</option></select>
 </div>
 
 <div id="map"></div>
@@ -45,14 +54,14 @@
 <!-- MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<!-- SheetJS (official CDN) -->
+<!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("JS loaded, map initializing...");
 
-  const map = L.map('map').setView([20.5937, 78.9629], 5);
+  // Initialize map (global view)
+  const map = L.map('map').setView([20, 0], 2);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors",
@@ -60,8 +69,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const markerCluster = L.markerClusterGroup().addTo(map);
   const allMarkers = [];
-  const categoryDropdown = document.getElementById("categoryFilter");
+  const filters = {
+    city: document.getElementById("cityFilter"),
+    company: document.getElementById("companyFilter"),
+    category: document.getElementById("categoryFilter"),
+    status: document.getElementById("statusFilter"),
+    year: document.getElementById("yearFilter"),
+    poc: document.getElementById("pocFilter"),
+    team: document.getElementById("teamFilter"),
+  };
+  const searchBox = document.getElementById("searchBox");
 
+  // Status color mapping
   const statusColors = {
     "completed": "green",
     "registered": "blue",
@@ -74,6 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
+  // Load Excel dataset
   async function loadExcel() {
     try {
       const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
@@ -82,17 +102,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const rows = XLSX.utils.sheet_to_json(sheet);
       console.log(`Loaded ${rows.length} rows`);
 
-      const categorySet = new Set();
+      const uniqueValues = {
+        city: new Set(),
+        company: new Set(),
+        category: new Set(),
+        status: new Set(),
+        year: new Set(),
+        poc: new Set(),
+        team: new Set()
+      };
 
       rows.forEach(r => {
         const lat = parseFloat(r.Latitude);
         const lon = parseFloat(r.Longitude);
         if (isNaN(lat) || isNaN(lon)) return;
 
+        const City = r.City || "";
+        const Company = r["Company Name"] || "";
         const Category = r.Category || "Other";
         const Status = r.Status || "";
-        const Company = r["Company Name"] || "";
-        const City = r.City || "";
         const Year = r.Year || "";
         const PoC = r.PoC || "";
         const Team = r.Team || "";
@@ -100,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const color = statusColors[Status.toLowerCase()] || "black";
 
         const marker = L.circleMarker([lat, lon], {
-          radius: 9,
+          radius: 8,
           fillOpacity: 0.9,
           color: color
         }).bindPopup(`
@@ -113,17 +141,32 @@ document.addEventListener("DOMContentLoaded", () => {
           <b>Team:</b> ${Team}
         `);
 
-        marker.category = Category;
+        marker.data = {City, Company, Category, Status, Year, PoC, Team};
         allMarkers.push(marker);
         markerCluster.addLayer(marker);
-        categorySet.add(Category);
+
+        // Collect unique filter values
+        uniqueValues.city.add(City);
+        uniqueValues.company.add(Company);
+        uniqueValues.category.add(Category);
+        uniqueValues.status.add(Status);
+        uniqueValues.year.add(Year);
+        uniqueValues.poc.add(PoC);
+        uniqueValues.team.add(Team);
       });
 
-      [...categorySet].sort().forEach(cat => {
-        const opt = document.createElement("option");
-        opt.value = cat;
-        opt.textContent = cat;
-        categoryDropdown.appendChild(opt);
+      // Populate filter dropdowns
+      Object.keys(filters).forEach(key => {
+        const set = uniqueValues[key];
+        const dropdown = filters[key];
+        [...set].sort().forEach(val => {
+          if (val && val !== "") {
+            const opt = document.createElement("option");
+            opt.value = val;
+            opt.textContent = val;
+            dropdown.appendChild(opt);
+          }
+        });
       });
 
     } catch (err) {
@@ -131,14 +174,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  categoryDropdown.addEventListener("change", () => {
-    const selected = categoryDropdown.value;
-    markerCluster.clearLayers();
-    allMarkers.forEach(marker => {
-      if (selected === "all" || marker.category === selected)
-        markerCluster.addLayer(marker);
+  // Apply all filters + search
+  function applyFilters() {
+    const searchText = searchBox.value.toLowerCase();
+    const selectedFilters = {};
+    Object.keys(filters).forEach(key => {
+      selectedFilters[key] = filters[key].value.toLowerCase();
     });
-  });
+
+    markerCluster.clearLayers();
+
+    allMarkers.forEach(marker => {
+      const d = marker.data;
+      let show = true;
+
+      // Column filters
+      Object.keys(selectedFilters).forEach(key => {
+        if (selectedFilters[key] !== "all" && (d[key] || "").toLowerCase() !== selectedFilters[key]) {
+          show = false;
+        }
+      });
+
+      // Search filter
+      const combinedText = Object.values(d).join(" ").toLowerCase();
+      if (searchText && !combinedText.includes(searchText)) show = false;
+
+      if (show) markerCluster.addLayer(marker);
+    });
+  }
+
+  // Event listeners
+  Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
+  searchBox.addEventListener("input", applyFilters);
 
   loadExcel();
 });
