@@ -2,28 +2,22 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Projects Map | Portfolio</title>
+<title>Projects Map | Portfolio">
 
 <!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Leaflet Clustering -->
+<!-- Marker Cluster -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<!-- Excel Reader -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
+<!-- Excel Reader (fixed CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 
-<style>
-  #map { height: 100vh; width: 100%; }
-  .filter-box {
-    position: absolute; top: 10px; left: 10px; padding: 6px 10px;
-    background: white; border-radius: 5px; box-shadow: 0 0 6px rgba(0,0,0,0.3);
-    z-index: 1000; font-family: Arial;
-  }
-</style>
+<!-- Prevent favicon missing error -->
+<link rel="icon" href="data:,">
 </head>
 
 <body>
