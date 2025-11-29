@@ -2,122 +2,21 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Projects Map | Portfolio">
+<title>Test Map</title>
 
-<!-- Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Marker Cluster -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-<!-- Excel Reader (fixed CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
-
-<!-- Prevent favicon missing error -->
-<link rel="icon" href="data:,">
+<style>
+#map { height: 100vh; width: 100%; }
+</style>
 </head>
-
 <body>
-<div class="filter-box">
-  <label><b>Filter by Category:</b></label>
-  <select id="categoryFilter">
-    <option value="all">All</option>
-  </select>
-</div>
-
 <div id="map"></div>
 
 <script>
 const map = L.map('map').setView([22.6, 79], 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-const markerCluster = L.markerClusterGroup().addTo(map);
-
-// Color code for statuses
-const statusColors = {
-  "completed": "green",
-  "registered": "blue",
-  "intro session pending": "orange",
-  "working on documentation": "purple",
-  "working on clarification": "brown",
-  "report released": "cyan",
-  "certificate released": "gold",
-  "site audit pending": "gray",
-  "inactive": "red"
-};
-
-// Category filter dropdown
-const categoryDropdown = document.getElementById("categoryFilter");
-const allMarkers = [];
-const cache = {}; // geocode cache
-
-async function geocode(city, state) {
-  const key = `${city},${state}`;
-  if (cache[key]) return cache[key];
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + "," + state + ", India")}`
-  );
-  const data = await res.json();
-  if (!data.length) return null;
-  cache[key] = [data[0].lat, data[0].lon];
-  return cache[key];
-}
-
-async function loadExcel() {
-  const workbook = XLSX.read(await fetch("dataset.xlsx").then(r => r.arrayBuffer()), {type: "array"});
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet);
-
-  const categorySet = new Set();
-
-  for (let row of rows) {
-    const { City, State, "Company Name": Company, Category, Status, Year, PoC, Team } = row;
-    if (!City || !State) continue;
-
-    categorySet.add(Category);
-
-    const coords = await geocode(City, State);
-    if (!coords) continue;
-
-    const marker = L.circleMarker(coords, {
-      radius: 9,
-      fillOpacity: 0.9,
-      color: statusColors[Status.toLowerCase()] || "black"
-    }).bindPopup(`
-      <b>${Company}</b><br>
-      <b>City:</b> ${City}, ${State}<br>
-      <b>Category:</b> ${Category}<br>
-      <b>Status:</b> ${Status}<br>
-      <b>Year:</b> ${Year}<br>
-      <b>PoC:</b> ${PoC}<br>
-      <b>Team:</b> ${Team}
-    `);
-
-    marker.category = Category;
-    allMarkers.push(marker);
-    markerCluster.addLayer(marker);
-  }
-
-  // Fill dropdown categories
-  [...categorySet].sort().forEach(cat => {
-    const op = document.createElement("option");
-    op.value = cat;
-    op.textContent = cat;
-    categoryDropdown.appendChild(op);
-  });
-}
-
-categoryDropdown.addEventListener("change", () => {
-  const selected = categoryDropdown.value;
-  markerCluster.clearLayers();
-  allMarkers.forEach(m => {
-    if (selected === "all" || m.category === selected) markerCluster.addLayer(m);
-  });
-});
-
-loadExcel();
 </script>
 </body>
 </html>
