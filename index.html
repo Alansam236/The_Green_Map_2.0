@@ -1,90 +1,237 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>The Green Map 4.0</title>
+<meta charset="UTF-8" />
+<title>The Green Map — Final</title>
 <link rel="icon" href="data:,">
 
+<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<!-- MarkerCluster CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
 <style>
-  body { margin: 0; padding: 0; font-family: Arial; }
+  body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
   #map { height: 100vh; width: 100vw; }
 
+  /* Control panel */
   .control-panel {
     position: absolute;
-    bottom: 10px;
-    left: 10px;
-    width: 260px;
+    bottom: 12px;
+    left: 12px;
+    width: 300px;
     z-index: 1000;
-    background: white;
+    background: #ffffffee;
     border-radius: 8px;
-    box-shadow: 0 0 8px rgba(0,0,0,0.35);
-    padding: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    overflow: hidden;
   }
-  .collapsed { height: 38px; overflow: hidden; }
-  .control-header { cursor: pointer; font-weight: bold; margin-bottom: 6px; }
+  .panel-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 12px;
+    cursor:pointer;
+    background: linear-gradient(180deg,#f6f6f6,#efefef);
+    border-bottom:1px solid #e6e6e6;
+  }
+  .panel-title { font-weight:700; font-size:14px; }
+  .panel-body { padding:10px; max-height:360px; overflow:auto; }
+  .collapsed .panel-body { display:none; }
+  .controls-row { margin-bottom:8px; }
 
-  select, input { width: 100%; margin: 4px 0; padding: 5px; }
-  select[multiple] { height: 65px; }
-  .btn-reset {
-    width: 100%; padding: 6px; margin-top: 6px;
-    border: none; background: #d9534f; color: white; border-radius: 4px; cursor: pointer;
+  input[type="text"] {
+    box-sizing:border-box;
+    width:100%;
+    padding:8px;
+    border-radius:4px;
+    border:1px solid #ccc;
   }
-  .result-count { font-size: 13px; margin-top: 5px; font-weight: bold; text-align: center; }
+
+  .multiselect {
+    position:relative;
+    font-size:13px;
+    margin-top:6px;
+  }
+  .ms-button {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    width:100%;
+    padding:8px;
+    border-radius:4px;
+    border:1px solid #ccc;
+    background:white;
+    cursor:pointer;
+  }
+  .ms-menu {
+    position:absolute;
+    left:0;
+    right:0;
+    background:white;
+    border:1px solid #ddd;
+    box-shadow:0 4px 10px rgba(0,0,0,0.08);
+    margin-top:6px;
+    max-height:180px;
+    overflow:auto;
+    z-index:2000;
+    padding:8px;
+  }
+  .ms-menu label { display:block; margin-bottom:6px; font-size:13px; cursor:pointer; }
+  .ms-actions { display:flex; gap:6px; margin-top:6px; }
+  .ms-actions button { flex:1; padding:6px; border-radius:4px; border:none; cursor:pointer; }
+  .btn-apply { background:#2b8aef; color:white; }
+  .btn-clear { background:#f1f1f1; }
+
+  .footer-controls { display:flex; gap:8px; margin-top:8px; align-items:center; }
+  .btn-reset { flex:1; padding:8px; border-radius:6px; border:none; background:#d9534f; color:white; cursor:pointer; }
+  .toggle-group { display:flex; gap:8px; align-items:center; font-size:13px; }
+
+  .result-count { text-align:center; margin-top:8px; font-weight:600; font-size:13px; }
+
+  /* small helper */
+  .small { font-size:12px; color:#444; }
+  .checkbox { margin-right:8px; }
+
+  /* popup styling small improvement */
+  .leaflet-popup-content b { color:#222; }
 </style>
 </head>
 <body>
 
-<div class="control-panel collapsed" id="panel">
-  <div class="control-header">▼ Filters (click to expand/collapse)</div>
+<div class="control-panel" id="controlPanel">
+  <div class="panel-header" id="panelHeader">
+    <div class="panel-title">Filters</div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <label class="small">Cluster</label>
+      <input type="checkbox" id="clusterToggle" title="Toggle marker clustering" checked>
+      <button id="collapseBtn" style="background:none;border:none;cursor:pointer;font-weight:700;">─</button>
+    </div>
+  </div>
 
-  <input type="text" id="searchBox" placeholder="Search..." />
-  <select id="cityFilter" multiple></select>
-  <select id="companyFilter" multiple></select>
-  <select id="categoryFilter" multiple></select>
-  <select id="statusFilter" multiple></select>
-  <select id="yearFilter" multiple></select>
-  <select id="pocFilter" multiple></select>
-  <select id="teamFilter" multiple></select>
+  <div class="panel-body" id="panelBody">
+    <div class="controls-row">
+      <input type="text" id="searchBox" placeholder="Search company / city / PoC ..." />
+    </div>
 
-  <button class="btn-reset" id="resetFilters">RESET FILTERS</button>
-  <div class="result-count" id="resultCount">Loading...</div>
+    <!-- Multiselect controls (compact dropdown with checkboxes) -->
+    <div class="controls-row">
+      <div class="multiselect" data-field="City">
+        <div class="ms-button" role="button"><span class="ms-label">Cities</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="multiselect" data-field="Company">
+        <div class="ms-button" role="button"><span class="ms-label">Companies</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="multiselect" data-field="Category">
+        <div class="ms-button" role="button"><span class="ms-label">Categories</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="multiselect" data-field="Status">
+        <div class="ms-button" role="button"><span class="ms-label">Statuses</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="multiselect" data-field="Year">
+        <div class="ms-button" role="button"><span class="ms-label">Years</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="multiselect" data-field="PoC">
+        <div class="ms-button" role="button"><span class="ms-label">PoCs</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="multiselect" data-field="Team">
+        <div class="ms-button" role="button"><span class="ms-label">Teams</span><span class="ms-count small">All</span></div>
+        <div class="ms-menu" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="footer-controls">
+      <button class="btn-reset" id="resetFilters">Reset filters</button>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div class="toggle-group small"><label>Cluster:</label><input type="checkbox" id="clusterToggle2" checked></div>
+      </div>
+    </div>
+
+    <div class="result-count" id="resultCount">0 / 0 shown</div>
+  </div>
 </div>
 
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
+/* === Final upgraded map script ===
+   Features:
+   - Reads dataset.xlsx
+   - Collapsible panel
+   - Compact multi-select dropdowns (checkbox lists)
+   - Reset filters
+   - Dynamic count
+   - Auto-assigned unique shapes per Category
+   - Cluster toggle
+*/
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Map init
+  const map = L.map('map').setView([20,0], 3);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OSM & CARTO'
+  }).addTo(map);
 
-  const map = L.map("map").setView([20, 0], 2);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
-
+  // Marker cluster (we will toggle add/remove)
   let markerCluster = L.markerClusterGroup();
   map.addLayer(markerCluster);
 
-  const allMarkers = [];
-  const panel = document.getElementById("panel");
-  const searchBox = document.getElementById("searchBox");
-  const resetBtn = document.getElementById("resetFilters");
-  const resultCount = document.getElementById("resultCount");
+  // UI references
+  const controlPanel = document.getElementById('controlPanel');
+  const panelHeader = document.getElementById('panelHeader');
+  const panelBody = document.getElementById('panelBody');
+  const collapseBtn = document.getElementById('collapseBtn');
+  const clusterToggle = document.getElementById('clusterToggle');
+  const clusterToggle2 = document.getElementById('clusterToggle2'); // replicate toggle in footer
+  const searchBox = document.getElementById('searchBox');
+  const resultCount = document.getElementById('resultCount');
+  const resetBtn = document.getElementById('resetFilters');
 
-  const filters = {
-    City: document.getElementById("cityFilter"),
-    Company: document.getElementById("companyFilter"),
-    Category: document.getElementById("categoryFilter"),
-    Status: document.getElementById("statusFilter"),
-    Year: document.getElementById("yearFilter"),
-    PoC: document.getElementById("pocFilter"),
-    Team: document.getElementById("teamFilter")
-  };
+  // Multiselect elements registry (auto-populated)
+  const multiselects = Array.from(document.querySelectorAll('.multiselect')).reduce((acc, el) => {
+    const field = el.dataset.field;
+    acc[field] = { root: el, button: el.querySelector('.ms-button'), menu: el.querySelector('.ms-menu'), label: el.querySelector('.ms-label'), count: el.querySelector('.ms-count') };
+    return acc;
+  }, {});
 
+  // Data store
+  const allMarkers = []; // {marker, data, categoryShapeKey}
+  let totalCount = 0;
+
+  // Colors for statuses (you can adjust)
   const statusColors = {
     "completed": "green",
     "registered": "blue",
@@ -97,97 +244,358 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
-  const shapes = {
-    "Construction Blocks": "circle",
-    "Energy": "square",
-    "Industry": "triangle",
-    "Education": "star"
-  };
+  // Pool of shapes (SVG types)
+  const shapePool = ['circle','square','triangle','diamond','star','hexagon','cross','pentagon'];
+  const categoryToShape = {}; // assigned dynamically
 
-  function getShape(lat, lon, shape, color) {
+  function assignShapeForCategory(cat) {
+    if (!cat) return 'circle';
+    if (categoryToShape[cat]) return categoryToShape[cat];
+    // assign next unused shape
+    const used = Object.values(categoryToShape);
+    const available = shapePool.find(s => !used.includes(s)) || shapePool[Object.keys(categoryToShape).length % shapePool.length];
+    categoryToShape[cat] = available;
+    return available;
+  }
+
+  // Create an L.Icon from a small SVG string for shape+color
+  function createSvgIcon(shape, color) {
+    const size = 26;
+    let path = '';
+    // simple SVG shapes centered in viewBox 0..100
     switch (shape) {
-      case "square": return L.rectangle([[lat-0.04, lon-0.04], [lat+0.04, lon+0.04]], {color, weight: 2});
-      case "triangle": return L.polygon([[lat, lon-0.05], [lat-0.05, lon+0.05], [lat+0.05, lon+0.05]], {color, weight: 2});
-      case "star": return L.circleMarker([lat, lon], { radius: 12, color, weight: 3 });
-      default: return L.circleMarker([lat, lon], { radius: 8, color, weight: 3 });
+      case 'square':
+        path = '<rect x="15" y="15" width="70" height="70" rx="8" ry="8" />';
+        break;
+      case 'triangle':
+        path = '<polygon points="50,12 88,82 12,82" />';
+        break;
+      case 'diamond':
+        path = '<polygon points="50,10 85,50 50,90 15,50" />';
+        break;
+      case 'star':
+        path = '<polygon points="50,12 61,39 90,39 66,58 76,86 50,70 24,86 34,58 10,39 39,39" />';
+        break;
+      case 'hexagon':
+        path = '<polygon points="30,12 70,12 90,50 70,88 30,88 10,50" />';
+        break;
+      case 'cross':
+        path = '<path d="M40 10 h20 v30 h30 v20 h-30 v30 h-20 v-30 h-30 v-20 h30 z" />';
+        break;
+      case 'pentagon':
+        path = '<polygon points="50,10 88,38 71,82 29,82 12,38" />';
+        break;
+      case 'circle':
+      default:
+        path = '<circle cx="50" cy="50" r="36" />';
+    }
+
+    const svg = encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>` +
+      `<g fill='${color}' stroke='black' stroke-width='3'>${path}</g></svg>`
+    );
+    const html = `<img src="data:image/svg+xml;charset=utf-8,${svg}" style="width:${size}px;height:${size}px;display:block;" />`;
+    return L.divIcon({
+      html,
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2],
+      popupAnchor: [0, -size/2]
+    });
+  }
+
+  // Utility: sanitize string and toLower
+  function str(v) { return (v === null || v === undefined) ? '' : String(v).trim(); }
+
+  // Populate a multiselect menu with unique sorted options
+  function populateMultiselect(field, values) {
+    const ui = multiselects[field];
+    if (!ui) return;
+    const menu = ui.menu;
+    menu.innerHTML = ''; // clear
+    const sorted = [...values].filter(v=>v!=='').sort((a,b)=>a.localeCompare(b));
+    if (sorted.length === 0) {
+      const p = document.createElement('div');
+      p.className = 'small'; p.textContent = '(no values)';
+      menu.appendChild(p);
+    } else {
+      sorted.forEach(v => {
+        const id = `chk-${field}-${Math.random().toString(36).slice(2,9)}`;
+        const label = document.createElement('label');
+        label.innerHTML = `<input class="ms-chk" type="checkbox" data-field="${field}" value="${v}" id="${id}"> ${v}`;
+        menu.appendChild(label);
+      });
+      const actions = document.createElement('div');
+      actions.className = 'ms-actions';
+      actions.innerHTML = `<button class="btn-clear small">Clear</button><button class="btn-apply small">Apply</button>`;
+      menu.appendChild(actions);
+
+      // action handlers
+      actions.querySelector('.btn-clear').addEventListener('click', () => {
+        menu.querySelectorAll('.ms-chk').forEach(c=>c.checked=false);
+        updateMsLabel(field);
+      });
+      actions.querySelector('.btn-apply').addEventListener('click', () => {
+        toggleMsMenu(field, false);
+        updateMsLabel(field);
+        applyFilters();
+      });
     }
   }
 
-  async function loadExcel() {
-    const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
-    const rows = XLSX.utils.sheet_to_json(XLSX.read(buffer, { type: "array" }).Sheets["Sheet1"]);
-
-    const unique = {City:new Set(),Company:new Set(),Category:new Set(),Status:new Set(),Year:new Set(),PoC:new Set(),Team:new Set()};
-
-    rows.forEach(row => {
-      const lat = parseFloat(row.Latitude), lon = parseFloat(row.Longitude);
-      if (isNaN(lat) || isNaN(lon)) return;
-
-      const d = {
-        City: String(row.City ?? ""), Company: String(row["Company Name"] ?? ""),
-        Category: String(row.Category ?? ""), Status: String(row.Status ?? ""),
-        Remark: String(row.Remark ?? ""), PoC: String(row.PoC ?? ""),
-        Year: String(row.Year ?? ""), Team: String(row.Team ?? "")
-      };
-
-      const marker = getShape(lat, lon, shapes[d.Category] || "circle", statusColors[d.Status.toLowerCase()] || "black")
-        .bindPopup(`<b>${d.Company}</b><br><b>City:</b> ${d.City}<br><b>Category:</b> ${d.Category}<br><b>Status:</b> ${d.Status}<br><b>Remark:</b> ${d.Remark}<br><b>Year:</b> ${d.Year}<br><b>PoC:</b> ${d.PoC}<br><b>Team:</b> ${d.Team}`);
-
-      marker.data = d;
-      allMarkers.push(marker);
-      markerCluster.addLayer(marker);
-
-      Object.keys(unique).forEach(k => unique[k].add(d[k]));
-    });
-
-    Object.keys(filters).forEach(k => {
-      [...unique[k]].sort().forEach(v => {
-        const opt = new Option(v, v); filters[k].appendChild(opt);
-      });
-    });
-
-    updateCount();
+  // Show/hide multiselect menu
+  function toggleMsMenu(field, show) {
+    const ui = multiselects[field];
+    if (!ui) return;
+    ui.menu.style.display = show ? 'block' : 'none';
   }
 
-  function applyFilters() {
-    markerCluster.clearLayers();
-    let count = 0;
-    const search = searchBox.value.toLowerCase();
+  // Update button label with selected count/text
+  function updateMsLabel(field) {
+    const ui = multiselects[field];
+    if (!ui) return;
+    const selected = [...ui.menu.querySelectorAll('.ms-chk:checked')].map(c => c.value);
+    ui.count.textContent = selected.length ? `${selected.length} selected` : 'All';
+  }
 
+  // Read dataset.xlsx and build markers
+  async function loadExcel() {
+    try {
+      const res = await fetch('dataset.xlsx');
+      const buffer = await res.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+      // gather unique sets
+      const uniques = { City: new Set(), Company: new Set(), Category: new Set(), Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set() };
+
+      rows.forEach(row => {
+        const lat = parseFloat(row.Latitude);
+        const lon = parseFloat(row.Longitude);
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        const data = {
+          City: str(row.City),
+          Company: str(row['Company Name']),
+          Category: str(row.Category),
+          Status: str(row.Status),
+          Remark: str(row.Remark),
+          PoC: str(row.PoC),
+          Year: str(row.Year),
+          Team: str(row.Team)
+        };
+
+        // assign shape for category (auto)
+        const shape = assignShapeForCategory(data.Category);
+
+        // color based on status
+        const color = statusColors[data.Status.toLowerCase()] || '#333';
+
+        // create marker icon
+        const icon = createSvgIcon(shape, color);
+
+        // marker creation
+        const marker = L.marker([lat, lon], { icon }).bindPopup(
+          `<b>${escapeHtml(data.Company)}</b><br>
+           <b>City:</b> ${escapeHtml(data.City)}<br>
+           <b>Category:</b> ${escapeHtml(data.Category)}<br>
+           <b>Status:</b> ${escapeHtml(data.Status)}<br>
+           <b>Remark:</b> ${escapeHtml(data.Remark)}<br>
+           <b>Year:</b> ${escapeHtml(data.Year)}<br>
+           <b>PoC:</b> ${escapeHtml(data.PoC)}<br>
+           <b>Team:</b> ${escapeHtml(data.Team)}`
+        );
+
+        marker.data = data;
+        marker.categoryShape = shape;
+
+        allMarkers.push(marker);
+        markerCluster.addLayer(marker);
+
+        // collect uniques for filters
+        Object.keys(uniques).forEach(k => uniques[k].add(data[k]));
+      });
+
+      totalCount = allMarkers.length;
+
+      // populate UI multiselects
+      Object.keys(uniques).forEach(k => populateMultiselect(k, uniques[k]));
+
+      // initial count
+      updateCount(totalCount);
+
+      // apply default filters (none)
+      applyFilters();
+    } catch (err) {
+      console.error('Failed to load dataset.xlsx', err);
+      alert('Error loading dataset.xlsx — check console for details.');
+    }
+  }
+
+  // Escape HTML to avoid malformed popups if input contains markup
+  function escapeHtml(s) {
+    return s.replaceAll && typeof s.replaceAll === 'function' ?
+      s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') :
+      s;
+  }
+
+  // Apply filters/search and update visible markers & count
+  function applyFilters() {
+    // clear cluster and map markers
+    markerCluster.clearLayers();
+
+    const search = str(searchBox.value).toLowerCase();
+
+    // build selected filters map
+    const selectedMap = {};
+    Object.keys(multiselects).forEach(field => {
+      const menu = multiselects[field].menu;
+      const checked = menu ? [...menu.querySelectorAll('.ms-chk:checked')].map(c=>c.value) : [];
+      selectedMap[field] = checked; // empty array => means "select all"
+    });
+
+    let visibleCount = 0;
     allMarkers.forEach(marker => {
       const d = marker.data;
-      let show = true;
+      let ok = true;
 
-      Object.keys(filters).forEach(k => {
-        const selected = [...filters[k].selectedOptions].map(o => o.value);
-        if (selected.length && !selected.includes(d[k])) show = false;
+      // check each field: if selected list has items and d[field] not included => hide
+      Object.keys(selectedMap).forEach(field => {
+        const sel = selectedMap[field];
+        if (sel.length && !sel.includes(d[field])) ok = false;
       });
 
-      if (search && !Object.values(d).join(" ").toLowerCase().includes(search)) show = false;
+      // search filter across all fields
+      if (ok && search) {
+        const composite = Object.values(d).join(' ').toLowerCase();
+        if (!composite.includes(search)) ok = false;
+      }
 
-      if (show) { markerCluster.addLayer(marker); count++; }
+      if (ok) {
+        markerCluster.addLayer(marker);
+        visibleCount++;
+      }
     });
-    updateCount(count);
+
+    // Show markers either clustered or plain depending on toggle
+    if (!clusterToggle.checked || !clusterToggle2.checked) {
+      // if either toggle off, remove cluster and add plain markers
+      markerCluster.clearLayers();
+      allMarkers.forEach(m => map.removeLayer(m));
+      let count = 0;
+      allMarkers.forEach(marker => {
+        const d = marker.data;
+        let ok = true;
+        Object.keys(selectedMap).forEach(field => {
+          const sel = selectedMap[field];
+          if (sel.length && !sel.includes(d[field])) ok = false;
+        });
+        if (ok) {
+          marker.addTo(map);
+          count++;
+        }
+      });
+      updateCount(count);
+    } else {
+      // clustered mode
+      // ensure cluster group is on map
+      if (!map.hasLayer(markerCluster)) map.addLayer(markerCluster);
+      updateCount(visibleCount);
+    }
   }
 
-  function updateCount(count = markerCluster.getLayers().length) {
-    resultCount.textContent = `${count} result(s) shown`;
+  // Update result count text
+  function updateCount(visible) {
+    resultCount.textContent = `${visible} / ${totalCount} shown`;
   }
 
-  resetBtn.addEventListener("click", () => {
-    searchBox.value = "";
-    Object.values(filters).forEach(f => [...f.options].forEach(o => o.selected = false));
+  // Wire up multiselect button open/close and outside click to close
+  Object.keys(multiselects).forEach(field => {
+    const ui = multiselects[field];
+    ui.button.addEventListener('click', () => {
+      const isOpen = ui.menu.style.display === 'block';
+      // close all others
+      Object.keys(multiselects).forEach(f => multiselects[f].menu.style.display = 'none');
+      ui.menu.style.display = isOpen ? 'none' : 'block';
+      updateMsLabel(field);
+    });
+
+    // close when clicking outside
+    document.addEventListener('click', (ev) => {
+      if (!ui.root.contains(ev.target)) ui.menu.style.display = 'none';
+    });
+  });
+
+  // Sync the two cluster toggles
+  clusterToggle.addEventListener('change', () => {
+    clusterToggle2.checked = clusterToggle.checked;
+    // refresh display
+    // remove plain markers if cluster turned on
+    if (clusterToggle.checked) {
+      allMarkers.forEach(m => map.removeLayer(m));
+      if (!map.hasLayer(markerCluster)) map.addLayer(markerCluster);
+    } else {
+      // remove cluster layer to use plain markers
+      if (map.hasLayer(markerCluster)) map.removeLayer(markerCluster);
+    }
+    applyFilters();
+  });
+  clusterToggle2.addEventListener('change', () => {
+    clusterToggle.checked = clusterToggle2.checked;
+    clusterToggle.dispatchEvent(new Event('change'));
+  });
+
+  // Reset filters action
+  resetBtn.addEventListener('click', () => {
+    searchBox.value = '';
+    Object.keys(multiselects).forEach(f => {
+      const ui = multiselects[f];
+      ui.menu.querySelectorAll('.ms-chk')?.forEach(c => c.checked = false);
+      ui.count.textContent = 'All';
+    });
+    // reapply
     applyFilters();
   });
 
-  Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
-  searchBox.addEventListener("input", applyFilters);
-
-  document.querySelector(".control-header").addEventListener("click", () => {
-    panel.classList.toggle("collapsed");
+  // Search input handler (debounce small)
+  let searchTimer = null;
+  searchBox.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => applyFilters(), 200);
   });
 
+  // collapse button
+  panelHeader.addEventListener('click', () => {
+    controlPanel.classList.toggle('collapsed');
+    collapseBtn.textContent = controlPanel.classList.contains('collapsed') ? '▸' : '─';
+  });
+  // initial collapsed state
+  controlPanel.classList.add('collapsed');
+
+  // close all ms menus on Escape
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') Object.keys(multiselects).forEach(f=>multiselects[f].menu.style.display='none'); });
+
+  // Close MS menu when clicking Apply/Clear checkboxes inside (delegate)
+  document.addEventListener('change', (ev) => {
+    if (ev.target.classList && ev.target.classList.contains('ms-chk')) {
+      const fld = ev.target.dataset.field;
+      updateMsLabel(fld);
+    }
+  });
+
+  // Apply filters whenever a checkbox is toggled (for live feedback).
+  document.addEventListener('click', (ev) => {
+    if (ev.target.classList && ev.target.classList.contains('ms-chk')) {
+      // slight delay to allow checkbox state to update
+      setTimeout(() => applyFilters(), 60);
+    }
+  });
+
+  // Load data
   loadExcel();
+
+  // END of DOMContentLoaded
 });
 </script>
 </body>
