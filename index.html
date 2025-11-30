@@ -2,95 +2,78 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.7</title>
+<title>The Green Map 4.0</title>
 <link rel="icon" href="data:,">
 
-<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-<!-- MarkerCluster CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
 <style>
-  body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+  body { margin: 0; padding: 0; font-family: Arial; }
   #map { height: 100vh; width: 100vw; }
 
   .control-panel {
     position: absolute;
     bottom: 10px;
     left: 10px;
-    width: 240px;
+    width: 260px;
     z-index: 1000;
     background: white;
-    padding: 10px;
     border-radius: 8px;
-    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    box-shadow: 0 0 8px rgba(0,0,0,0.35);
+    padding: 10px;
   }
-  .control-panel select,
-  .control-panel input {
-    width: 100%;
-    margin: 4px 0;
-    padding: 5px;
-  }
+  .collapsed { height: 38px; overflow: hidden; }
+  .control-header { cursor: pointer; font-weight: bold; margin-bottom: 6px; }
 
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    margin-bottom: 6px;
+  select, input { width: 100%; margin: 4px 0; padding: 5px; }
+  select[multiple] { height: 65px; }
+  .btn-reset {
+    width: 100%; padding: 6px; margin-top: 6px;
+    border: none; background: #d9534f; color: white; border-radius: 4px; cursor: pointer;
   }
+  .result-count { font-size: 13px; margin-top: 5px; font-weight: bold; text-align: center; }
 </style>
 </head>
 <body>
 
-<div class="control-panel">
-
-  <div class="toggle-row">
-    <input type="checkbox" id="clusterToggle" checked>
-    <label for="clusterToggle"><b>Enable Clustering</b></label>
-  </div>
+<div class="control-panel collapsed" id="panel">
+  <div class="control-header">▼ Filters (click to expand/collapse)</div>
 
   <input type="text" id="searchBox" placeholder="Search..." />
-  <select id="cityFilter"><option value="all">All Cities</option></select>
-  <select id="companyFilter"><option value="all">All Companies</option></select>
-  <select id="categoryFilter"><option value="all">All Categories</option></select>
-  <select id="statusFilter"><option value="all">All Statuses</option></select>
-  <select id="yearFilter"><option value="all">All Years</option></select>
-  <select id="pocFilter"><option value="all">All PoCs</option></select>
-  <select id="teamFilter"><option value="all">All Teams</option></select>
+  <select id="cityFilter" multiple></select>
+  <select id="companyFilter" multiple></select>
+  <select id="categoryFilter" multiple></select>
+  <select id="statusFilter" multiple></select>
+  <select id="yearFilter" multiple></select>
+  <select id="pocFilter" multiple></select>
+  <select id="teamFilter" multiple></select>
 
+  <button class="btn-reset" id="resetFilters">RESET FILTERS</button>
+  <div class="result-count" id="resultCount">Loading...</div>
 </div>
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-<!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
   const map = L.map("map").setView([20, 0], 2);
-
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution: "&copy; OSM & CARTO",
-    subdomains: "abcd",
-    maxZoom: 19
-  }).addTo(map);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
 
   let markerCluster = L.markerClusterGroup();
   map.addLayer(markerCluster);
 
   const allMarkers = [];
+  const panel = document.getElementById("panel");
   const searchBox = document.getElementById("searchBox");
-  const clusterToggle = document.getElementById("clusterToggle");
+  const resetBtn = document.getElementById("resetFilters");
+  const resultCount = document.getElementById("resultCount");
 
   const filters = {
     City: document.getElementById("cityFilter"),
@@ -114,101 +97,94 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
+  const shapes = {
+    "Construction Blocks": "circle",
+    "Energy": "square",
+    "Industry": "triangle",
+    "Education": "star"
+  };
+
+  function getShape(lat, lon, shape, color) {
+    switch (shape) {
+      case "square": return L.rectangle([[lat-0.04, lon-0.04], [lat+0.04, lon+0.04]], {color, weight: 2});
+      case "triangle": return L.polygon([[lat, lon-0.05], [lat-0.05, lon+0.05], [lat+0.05, lon+0.05]], {color, weight: 2});
+      case "star": return L.circleMarker([lat, lon], { radius: 12, color, weight: 3 });
+      default: return L.circleMarker([lat, lon], { radius: 8, color, weight: 3 });
+    }
+  }
+
   async function loadExcel() {
     const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
+    const rows = XLSX.utils.sheet_to_json(XLSX.read(buffer, { type: "array" }).Sheets["Sheet1"]);
 
-    const uniqueValues = {
-      City: new Set(), Company: new Set(), Category: new Set(),
-      Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()
-    };
+    const unique = {City:new Set(),Company:new Set(),Category:new Set(),Status:new Set(),Year:new Set(),PoC:new Set(),Team:new Set()};
 
     rows.forEach(row => {
-      const lat = parseFloat(row.Latitude);
-      const lon = parseFloat(row.Longitude);
+      const lat = parseFloat(row.Latitude), lon = parseFloat(row.Longitude);
       if (isNaN(lat) || isNaN(lon)) return;
 
-      const data = {
-        City: String(row.City ?? "").trim(),
-        Company: String(row["Company Name"] ?? "").trim(),
-        Category: String(row.Category ?? "").trim(),
-        Status: String(row.Status ?? "").trim(),
-        Remark: String(row.Remark ?? "").trim(), // Popup only
-        PoC: String(row.PoC ?? "").trim(),
-        Year: String(row.Year ?? "").trim(),
-        Team: String(row.Team ?? "").trim()
+      const d = {
+        City: String(row.City ?? ""), Company: String(row["Company Name"] ?? ""),
+        Category: String(row.Category ?? ""), Status: String(row.Status ?? ""),
+        Remark: String(row.Remark ?? ""), PoC: String(row.PoC ?? ""),
+        Year: String(row.Year ?? ""), Team: String(row.Team ?? "")
       };
 
-      const marker = L.circleMarker([lat, lon], {
-        radius: 8,
-        fillOpacity: 0.9,
-        color: statusColors[data.Status.toLowerCase()] || "black"
-      }).bindPopup(`
-        <b>${data.Company}</b><br>
-        <b>City:</b> ${data.City}<br>
-        <b>Category:</b> ${data.Category}<br>
-        <b>Status:</b> ${data.Status}<br>
-        <b>Remark:</b> ${data.Remark}<br>
-        <b>Year:</b> ${data.Year}<br>
-        <b>PoC:</b> ${data.PoC}<br>
-        <b>Team:</b> ${data.Team}
-      `);
+      const marker = getShape(lat, lon, shapes[d.Category] || "circle", statusColors[d.Status.toLowerCase()] || "black")
+        .bindPopup(`<b>${d.Company}</b><br><b>City:</b> ${d.City}<br><b>Category:</b> ${d.Category}<br><b>Status:</b> ${d.Status}<br><b>Remark:</b> ${d.Remark}<br><b>Year:</b> ${d.Year}<br><b>PoC:</b> ${d.PoC}<br><b>Team:</b> ${d.Team}`);
 
-      marker.data = data;
+      marker.data = d;
       allMarkers.push(marker);
       markerCluster.addLayer(marker);
 
-      ["City","Company","Category","Status","Year","PoC","Team"].forEach(k =>
-        uniqueValues[k].add(data[k])
-      );
+      Object.keys(unique).forEach(k => unique[k].add(d[k]));
     });
 
     Object.keys(filters).forEach(k => {
-      [...uniqueValues[k]].sort().forEach(val => {
-        if (!val) return;
-        const opt = document.createElement("option");
-        opt.value = val;
-        opt.textContent = val;
-        filters[k].appendChild(opt);
+      [...unique[k]].sort().forEach(v => {
+        const opt = new Option(v, v); filters[k].appendChild(opt);
       });
     });
+
+    updateCount();
   }
 
   function applyFilters() {
     markerCluster.clearLayers();
-    allMarkers.forEach(m => map.removeLayer(m));
-
-    const searchText = searchBox.value.toLowerCase();
+    let count = 0;
+    const search = searchBox.value.toLowerCase();
 
     allMarkers.forEach(marker => {
       const d = marker.data;
-      let visible = true;
+      let show = true;
 
-      Object.keys(filters).forEach(key => {
-        const selected = filters[key].value;
-        if (selected !== "all" && d[key] !== selected) visible = false;
+      Object.keys(filters).forEach(k => {
+        const selected = [...filters[k].selectedOptions].map(o => o.value);
+        if (selected.length && !selected.includes(d[k])) show = false;
       });
 
-      if (searchText && !Object.values(d).join(" ").toLowerCase().includes(searchText))
-        visible = false;
+      if (search && !Object.values(d).join(" ").toLowerCase().includes(search)) show = false;
 
-      if (visible) {
-        if (clusterToggle.checked) markerCluster.addLayer(marker);
-        else marker.addTo(map);
-      }
+      if (show) { markerCluster.addLayer(marker); count++; }
     });
+    updateCount(count);
   }
+
+  function updateCount(count = markerCluster.getLayers().length) {
+    resultCount.textContent = `${count} result(s) shown`;
+  }
+
+  resetBtn.addEventListener("click", () => {
+    searchBox.value = "";
+    Object.values(filters).forEach(f => [...f.options].forEach(o => o.selected = false));
+    applyFilters();
+  });
 
   Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
   searchBox.addEventListener("input", applyFilters);
 
-  clusterToggle.addEventListener("change", () => {
-    markerCluster.clearLayers();
-    allMarkers.forEach(m => map.removeLayer(m));
-    if (clusterToggle.checked) map.addLayer(markerCluster);
-    applyFilters();
+  document.querySelector(".control-header").addEventListener("click", () => {
+    panel.classList.toggle("collapsed");
   });
 
   loadExcel();
