@@ -1,106 +1,259 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Industrial Cluster Map - Focus on Kolhapur</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta charset="UTF-8">
+<title>The Green Map 3.8</title>
+<link rel="icon" href="data:,">
 
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { height: 100%; }
-    .legend {
-      background: rgba(255,255,255,0.95);
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-  </style>
+<!-- MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+<style>
+  body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+  #map { height: 100vh; width: 100vw; }
+
+  .control-panel {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    width: 260px;
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    transition: 0.3s;
+  }
+
+  .collapsed {
+    height: 40px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 6px;
+  }
+
+  .control-panel select,
+  .control-panel input {
+    width: 100%;
+    margin: 4px 0;
+    padding: 5px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  #resetButton {
+    width: 100%;
+    margin-top: 8px;
+    padding: 6px;
+    background: #007bff;
+    border: none;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+</style>
 </head>
 <body>
 
+<div class="control-panel" id="panel">
+  <div class="panel-header" onclick="togglePanel()">▼ Filters Panel</div>
+
+  <div class="toggle-row">
+    <input type="checkbox" id="clusterToggle" checked>
+    <label for="clusterToggle"><b>Enable Clustering</b></label>
+  </div>
+
+  <input type="text" id="searchBox" placeholder="Search..." />
+
+  <select id="cityFilter"><option value="all">All Cities</option></select>
+  <select id="companyFilter"><option value="all">All Companies</option></select>
+  <select id="categoryFilter"><option value="all">All Categories</option></select>
+  <select id="statusFilter"><option value="all">All Statuses</option></select>
+  <select id="yearFilter"><option value="all">All Years</option></select>
+  <select id="pocFilter"><option value="all">All PoCs</option></select>
+  <select id="teamFilter"><option value="all">All Teams</option></select>
+
+  <button id="resetButton">Reset Filters</button>
+</div>
+
 <div id="map"></div>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- MarkerCluster JS -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<!-- SheetJS -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
 <script>
-// ------------ MAP BASE ----------------
-var map = L.map('map').setView([19.7, 78.9], 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
-
-// ------------ HARD-CODED STATE BOUNDARIES --------------
-// NOTE: Polygons are simplified for speed & clarity, not survey-accurate.
-// Maharashtra
-L.polygon([
-  [22.0, 72.0], [22.0, 80.5], [15.5, 80.5], [15.5, 72.0]
-], {color:"#ff7f00", weight:2, fillOpacity:0.15}).addTo(map);
-
-// Himachal Pradesh
-L.polygon([
-  [33.2, 75.6], [33.2, 79.4], [30.1, 79.4], [30.1, 75.6]
-], {color:"#005eff", weight:2, fillOpacity:0.15}).addTo(map);
-
-// Haryana
-L.polygon([
-  [30.4, 74.0], [30.4, 77.6], [27.4, 77.6], [27.4, 74.0]
-], {color:"#00b34a", weight:2, fillOpacity:0.15}).addTo(map);
-
-// Tamil Nadu
-L.polygon([
-  [13.6, 76.0], [13.6, 80.5], [8.0, 80.5], [8.0, 76.0]
-], {color:"#9b59b6", weight:2, fillOpacity:0.15}).addTo(map);
-
-// ------------ INDUSTRIAL CLUSTER MARKERS ---------------
-var markers = L.markerClusterGroup();
-
-function makeMarker(lat, lng, label, state, isFocus=false) {
-  return L.circleMarker([lat, lng], {
-    radius: isFocus ? 12 : 9,
-    fillColor: isFocus ? "#ff0000" : "#0077cc",
-    color: isFocus ? "#8b0000" : "#004c80",
-    weight: isFocus ? 3 : 2,
-    fillOpacity: isFocus ? 0.9 : 0.8
-  }).bindPopup(
-    `<b>${label}</b><br>
-     <b>State:</b> ${state}<br>
-     ${isFocus ? "<b style='color:red;'>Current Primary Focus</b>" : "Planned for Future"}`
-  );
+const panel = document.getElementById("panel");
+function togglePanel() {
+  panel.classList.toggle("collapsed");
 }
 
-// Kolhapur — main focus
-markers.addLayer(makeMarker(16.7050, 74.2433, "Kolhapur", "Maharashtra", true));
+document.addEventListener("DOMContentLoaded", () => {
 
-// Remaining (future clusters)
-markers.addLayer(makeMarker(18.5204, 73.8567, "Pune", "Maharashtra"));
-markers.addLayer(makeMarker(28.4595, 77.0266, "Gurugram", "Haryana"));
-markers.addLayer(makeMarker(30.9578, 76.7914, "Baddi Industrial Area", "Himachal Pradesh"));
-markers.addLayer(makeMarker(11.0168, 76.9558, "Coimbatore", "Tamil Nadu"));
+  const map = L.map("map").setView([20, 0], 2);
 
-map.addLayer(markers);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OSM & CARTO",
+    subdomains: "abcd",
+    maxZoom: 19
+  }).addTo(map);
 
-// ------------ LEGEND ----------------
-var legend = L.control({position: "bottomleft"});
-legend.onAdd = function() {
-  var div = L.DomUtil.create("div", "legend");
-  div.innerHTML = `
-    <b>Industrial Cluster View</b><br>
-    🔴 <b>Kolhapur</b> – Current Focus<br>
-    🔵 Pune – Future Cluster<br>
-    🔵 Gurugram – Future Cluster<br>
-    🔵 Baddi – Future Cluster<br>
-    🔵 Coimbatore – Future Cluster<br><br>
-    🟠 Maharashtra, 💜 Tamil Nadu, 💚 Haryana, 🔵 Himachal highlighted
-  `;
-  return div;
-};
-legend.addTo(map);
+  let markerCluster = L.markerClusterGroup();
+  map.addLayer(markerCluster);
 
+  const allMarkers = [];
+  const searchBox = document.getElementById("searchBox");
+  const clusterToggle = document.getElementById("clusterToggle");
+
+  const filters = {
+    City: document.getElementById("cityFilter"),
+    Company: document.getElementById("companyFilter"),
+    Category: document.getElementById("categoryFilter"),
+    Status: document.getElementById("statusFilter"),
+    Year: document.getElementById("yearFilter"),
+    PoC: document.getElementById("pocFilter"),
+    Team: document.getElementById("teamFilter")
+  };
+
+  const statusColors = {
+    "completed": "green",
+    "registered": "blue",
+    "intro session pending": "orange",
+    "working on documentation": "purple",
+    "working on clarification": "brown",
+    "report released": "cyan",
+    "certificate released": "gold",
+    "site audit pending": "gray",
+    "inactive": "red"
+  };
+
+  async function loadExcel() {
+    const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    const uniqueValues = {
+      City: new Set(), Company: new Set(), Category: new Set(),
+      Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()
+    };
+
+    rows.forEach(row => {
+      const lat = parseFloat(row.Latitude);
+      const lon = parseFloat(row.Longitude);
+      if (isNaN(lat) || isNaN(lon)) return;
+
+      const data = {
+        City: String(row.City ?? "").trim(),
+        Company: String(row["Company Name"] ?? "").trim(),
+        Category: String(row.Category ?? "").trim(),
+        Status: String(row.Status ?? "").trim(),
+        Remark: String(row.Remark ?? "").trim(),
+        PoC: String(row.PoC ?? "").trim(),
+        Year: String(row.Year ?? "").trim(),
+        Team: String(row.Team ?? "").trim()
+      };
+
+      // ★ CIRCLE MARKERS ONLY
+      const marker = L.circleMarker([lat, lon], {
+        radius: 8,
+        fillOpacity: 0.9,
+        color: statusColors[data.Status.toLowerCase()] || "black"
+      }).bindPopup(`
+        <b>${data.Company}</b><br>
+        <b>City:</b> ${data.City}<br>
+        <b>Category:</b> ${data.Category}<br>
+        <b>Status:</b> ${data.Status}<br>
+        <b>Remark:</b> ${data.Remark}<br>
+        <b>Year:</b> ${data.Year}<br>
+        <b>PoC:</b> ${data.PoC}<br>
+        <b>Team:</b> ${data.Team}
+      `);
+
+      marker.data = data;
+      allMarkers.push(marker);
+      markerCluster.addLayer(marker);
+
+      ["City","Company","Category","Status","Year","PoC","Team"].forEach(k =>
+        uniqueValues[k].add(data[k])
+      );
+    });
+
+    Object.keys(filters).forEach(k => {
+      [...uniqueValues[k]].sort().forEach(val => {
+        if (!val) return;
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = val;
+        filters[k].appendChild(opt);
+      });
+    });
+  }
+
+  function applyFilters() {
+    markerCluster.clearLayers();
+    allMarkers.forEach(m => map.removeLayer(m));
+
+    const searchText = searchBox.value.toLowerCase();
+
+    allMarkers.forEach(marker => {
+      const d = marker.data;
+      let visible = true;
+
+      Object.keys(filters).forEach(key => {
+        const selected = filters[key].value;
+        if (selected !== "all" && d[key] !== selected) visible = false;
+      });
+
+      if (searchText && !Object.values(d).join(" ").toLowerCase().includes(searchText))
+        visible = false;
+
+      if (visible) {
+        if (clusterToggle.checked) markerCluster.addLayer(marker);
+        else marker.addTo(map);
+      }
+    });
+  }
+
+  Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
+  searchBox.addEventListener("input", applyFilters);
+
+  document.getElementById("resetButton").addEventListener("click", () => {
+    searchBox.value = "";
+    Object.values(filters).forEach(f => f.value = "all");
+    applyFilters();
+  });
+
+  clusterToggle.addEventListener("change", () => {
+    markerCluster.clearLayers();
+    allMarkers.forEach(m => map.removeLayer(m));
+    if (clusterToggle.checked) map.addLayer(markerCluster);
+    applyFilters();
+  });
+
+  loadExcel();
+});
 </script>
-
 </body>
 </html>
