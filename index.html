@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>The Green Map 3.9</title>
+<title>The Green Map 3.8</title>
 <link rel="icon" href="data:,">
 
 <!-- Leaflet CSS -->
@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
 <style>
-  body { margin: 0; padding: 0; font-family: Arial; }
+  body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
   #map { height: 100vh; width: 100vw; }
 
   .control-panel {
@@ -23,83 +23,73 @@
     width: 260px;
     z-index: 1000;
     background: white;
+    padding: 10px;
     border-radius: 8px;
-    box-shadow: 0 0 8px rgba(0,0,0,0.35);
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+    transition: 0.3s;
+  }
+
+  .collapsed {
+    height: 40px;
     overflow: hidden;
   }
-  .panel-header {
-    background: #2c7be5;
-    color: white;
-    padding: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    text-align: center;
-  }
-  .panel-body {
-    padding: 10px;
-    display: none;
-  }
-  .panel-body.active { display: block; }
 
-  .panel-body select,
-  .panel-body input {
+  .panel-header {
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 6px;
+  }
+
+  .control-panel select,
+  .control-panel input {
     width: 100%;
-    margin: 5px 0;
-    padding: 6px;
-    font-size: 14px;
+    margin: 4px 0;
+    padding: 5px;
   }
 
   .toggle-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 8px;
     font-size: 14px;
+    margin-bottom: 6px;
   }
 
-  #resetBtn {
-    background: #d9534f;
-    border: none;
+  #resetButton {
     width: 100%;
-    padding: 7px;
+    margin-top: 8px;
+    padding: 6px;
+    background: #007bff;
+    border: none;
     color: white;
+    font-weight: bold;
     cursor: pointer;
     border-radius: 4px;
-    margin-top: 6px;
-  }
-
-  #countDisplay {
-    text-align: center;
-    font-size: 14px;
-    margin-top: 4px;
-    font-weight: bold;
   }
 </style>
 </head>
 <body>
 
-<div class="control-panel">
-  <div class="panel-header">🔽 Filters & Options</div>
-  <div class="panel-body">
-    
-    <div class="toggle-row">
-      <input type="checkbox" id="clusterToggle" checked>
-      <label><b>Enable Clustering</b></label>
-    </div>
+<div class="control-panel" id="panel">
+  <div class="panel-header" onclick="togglePanel()">▼ Filters Panel</div>
 
-    <input type="text" id="searchBox" placeholder="Search...">
-
-    <select id="cityFilter" multiple></select>
-    <select id="companyFilter" multiple></select>
-    <select id="categoryFilter" multiple></select>
-    <select id="statusFilter" multiple></select>
-    <select id="yearFilter" multiple></select>
-    <select id="pocFilter" multiple></select>
-    <select id="teamFilter" multiple></select>
-
-    <button id="resetBtn">Reset Filters</button>
-    <div id="countDisplay"></div>
+  <div class="toggle-row">
+    <input type="checkbox" id="clusterToggle" checked>
+    <label for="clusterToggle"><b>Enable Clustering</b></label>
   </div>
+
+  <input type="text" id="searchBox" placeholder="Search..." />
+
+  <select id="cityFilter"><option value="all">All Cities</option></select>
+  <select id="companyFilter"><option value="all">All Companies</option></select>
+  <select id="categoryFilter"><option value="all">All Categories</option></select>
+  <select id="statusFilter"><option value="all">All Statuses</option></select>
+  <select id="yearFilter"><option value="all">All Years</option></select>
+  <select id="pocFilter"><option value="all">All PoCs</option></select>
+  <select id="teamFilter"><option value="all">All Teams</option></select>
+
+  <button id="resetButton">Reset Filters</button>
 </div>
 
 <div id="map"></div>
@@ -114,11 +104,17 @@
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
+const panel = document.getElementById("panel");
+function togglePanel() {
+  panel.classList.toggle("collapsed");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 
   const map = L.map("map").setView([20, 0], 2);
 
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OSM & CARTO",
     subdomains: "abcd",
     maxZoom: 19
   }).addTo(map);
@@ -129,13 +125,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const allMarkers = [];
   const searchBox = document.getElementById("searchBox");
   const clusterToggle = document.getElementById("clusterToggle");
-  const resetBtn = document.getElementById("resetBtn");
-  const countDisplay = document.getElementById("countDisplay");
-
-  // Collapsible panel
-  document.querySelector(".panel-header").onclick = () => {
-    document.querySelector(".panel-body").classList.toggle("active");
-  };
 
   const filters = {
     City: document.getElementById("cityFilter"),
@@ -159,71 +148,67 @@ document.addEventListener("DOMContentLoaded", () => {
     "inactive": "red"
   };
 
-  function createSvgCircle(color) {
-    const size = 32;
-    const svg = `
-      <svg width="${size}" height="${size}" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="45" fill="${color}" stroke="black" stroke-width="6"/>
-      </svg>`;
-    return L.divIcon({ className: "", html: svg, iconSize: [size, size], iconAnchor: [16, 16] });
-  }
-
   async function loadExcel() {
     const buffer = await fetch("dataset.xlsx").then(r => r.arrayBuffer());
     const workbook = XLSX.read(buffer, { type: "array" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
-    const unique = { City:new Set(), Company:new Set(), Category:new Set(), Status:new Set(), Year:new Set(), PoC:new Set(), Team:new Set() };
+    const uniqueValues = {
+      City: new Set(), Company: new Set(), Category: new Set(),
+      Status: new Set(), Year: new Set(), PoC: new Set(), Team: new Set()
+    };
 
     rows.forEach(row => {
       const lat = parseFloat(row.Latitude);
       const lon = parseFloat(row.Longitude);
       if (isNaN(lat) || isNaN(lon)) return;
 
-      const d = {
-        City: String(row.City ?? ""),
-        Company: String(row["Company Name"] ?? ""),
-        Category: String(row.Category ?? ""),
-        Status: String(row.Status ?? ""),
-        Remark: String(row.Remark ?? ""),
-        Year: String(row.Year ?? ""),
-        PoC: String(row.PoC ?? ""),
-        Team: String(row.Team ?? "")
+      const data = {
+        City: String(row.City ?? "").trim(),
+        Company: String(row["Company Name"] ?? "").trim(),
+        Category: String(row.Category ?? "").trim(),
+        Status: String(row.Status ?? "").trim(),
+        Remark: String(row.Remark ?? "").trim(),
+        PoC: String(row.PoC ?? "").trim(),
+        Year: String(row.Year ?? "").trim(),
+        Team: String(row.Team ?? "").trim()
       };
 
-      const color = statusColors[d.Status.toLowerCase()] || "#333";
-      const icon = createSvgCircle(color);
-
-      const marker = L.marker([lat, lon], { icon }).bindPopup(`
-        <b>${d.Company}</b><br>
-        <b>City:</b> ${d.City}<br>
-        <b>Category:</b> ${d.Category}<br>
-        <b>Status:</b> ${d.Status}<br>
-        <b>Remark:</b> ${d.Remark}<br>
-        <b>Year:</b> ${d.Year}<br>
-        <b>PoC:</b> ${d.PoC}<br>
-        <b>Team:</b> ${d.Team}
+      // ★ CIRCLE MARKERS ONLY
+      const marker = L.circleMarker([lat, lon], {
+        radius: 8,
+        fillOpacity: 0.9,
+        color: statusColors[data.Status.toLowerCase()] || "black"
+      }).bindPopup(`
+        <b>${data.Company}</b><br>
+        <b>City:</b> ${data.City}<br>
+        <b>Category:</b> ${data.Category}<br>
+        <b>Status:</b> ${data.Status}<br>
+        <b>Remark:</b> ${data.Remark}<br>
+        <b>Year:</b> ${data.Year}<br>
+        <b>PoC:</b> ${data.PoC}<br>
+        <b>Team:</b> ${data.Team}
       `);
 
-      marker.data = d;
+      marker.data = data;
       allMarkers.push(marker);
       markerCluster.addLayer(marker);
 
-      Object.keys(unique).forEach(k => unique[k].add(d[k]));
+      ["City","Company","Category","Status","Year","PoC","Team"].forEach(k =>
+        uniqueValues[k].add(data[k])
+      );
     });
 
     Object.keys(filters).forEach(k => {
-      [...unique[k]].sort().forEach(v => {
-        if (!v) return;
+      [...uniqueValues[k]].sort().forEach(val => {
+        if (!val) return;
         const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
+        opt.value = val;
+        opt.textContent = val;
         filters[k].appendChild(opt);
       });
     });
-
-    applyFilters();
   }
 
   function applyFilters() {
@@ -231,43 +216,39 @@ document.addEventListener("DOMContentLoaded", () => {
     allMarkers.forEach(m => map.removeLayer(m));
 
     const searchText = searchBox.value.toLowerCase();
-    let count = 0;
 
-    allMarkers.forEach(m => {
-      const d = m.data;
+    allMarkers.forEach(marker => {
+      const d = marker.data;
       let visible = true;
 
-      Object.keys(filters).forEach(k => {
-        const selected = [...filters[k].selectedOptions].map(o => o.value);
-        if (selected.length && !selected.includes(d[k])) visible = false;
+      Object.keys(filters).forEach(key => {
+        const selected = filters[key].value;
+        if (selected !== "all" && d[key] !== selected) visible = false;
       });
 
       if (searchText && !Object.values(d).join(" ").toLowerCase().includes(searchText))
         visible = false;
 
       if (visible) {
-        count++;
-        if (clusterToggle.checked) markerCluster.addLayer(m);
-        else m.addTo(map);
+        if (clusterToggle.checked) markerCluster.addLayer(marker);
+        else marker.addTo(map);
       }
     });
-
-    countDisplay.textContent = `${count} locations visible`;
   }
 
-  searchBox.addEventListener("input", applyFilters);
   Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
+  searchBox.addEventListener("input", applyFilters);
+
+  document.getElementById("resetButton").addEventListener("click", () => {
+    searchBox.value = "";
+    Object.values(filters).forEach(f => f.value = "all");
+    applyFilters();
+  });
 
   clusterToggle.addEventListener("change", () => {
     markerCluster.clearLayers();
     allMarkers.forEach(m => map.removeLayer(m));
     if (clusterToggle.checked) map.addLayer(markerCluster);
-    applyFilters();
-  });
-
-  resetBtn.addEventListener("click", () => {
-    searchBox.value = "";
-    Object.values(filters).forEach(f => [...f.options].forEach(o => o.selected = false));
     applyFilters();
   });
 
