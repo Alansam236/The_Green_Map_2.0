@@ -5,10 +5,7 @@
 <title>The Green Map 3.8</title>
 <link rel="icon" href="data:,">
 
-<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-<!-- MarkerCluster CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
@@ -29,43 +26,16 @@
     transition: 0.3s;
   }
 
-  .collapsed {
-    height: 40px;
-    overflow: hidden;
+  .collapsed { height: 40px; overflow: hidden; }
+  .panel-header { font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 6px; }
+  .control-panel select, .control-panel input {
+    width: 100%; margin: 4px 0; padding: 5px;
   }
 
-  .panel-header {
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    margin-bottom: 6px;
-  }
-
-  .control-panel select,
-  .control-panel input {
-    width: 100%;
-    margin: 4px 0;
-    padding: 5px;
-  }
-
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    margin-bottom: 6px;
-  }
-
+  .toggle-row { display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 6px; }
   #resetButton {
-    width: 100%;
-    margin-top: 8px;
-    padding: 6px;
-    background: #007bff;
-    border: none;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    border-radius: 4px;
+    width: 100%; margin-top: 8px; padding: 6px; background: #007bff;
+    border: none; color: white; font-weight: bold; cursor: pointer; border-radius: 4px;
   }
 </style>
 </head>
@@ -80,7 +50,6 @@
   </div>
 
   <input type="text" id="searchBox" placeholder="Search..." />
-
   <select id="cityFilter"><option value="all">All Cities</option></select>
   <select id="companyFilter"><option value="all">All Companies</option></select>
   <select id="categoryFilter"><option value="all">All Categories</option></select>
@@ -94,28 +63,19 @@
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-<!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
 const panel = document.getElementById("panel");
-function togglePanel() {
-  panel.classList.toggle("collapsed");
-}
+function togglePanel() { panel.classList.toggle("collapsed"); }
 
 document.addEventListener("DOMContentLoaded", () => {
-
   const map = L.map("map").setView([20, 0], 2);
 
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     attribution: "&copy; OSM & CARTO",
-    subdomains: "abcd",
     maxZoom: 19
   }).addTo(map);
 
@@ -134,18 +94,6 @@ document.addEventListener("DOMContentLoaded", () => {
     Year: document.getElementById("yearFilter"),
     PoC: document.getElementById("pocFilter"),
     Team: document.getElementById("teamFilter")
-  };
-
-  const statusColors = {
-    "completed": "green",
-    "registered": "blue",
-    "intro session pending": "orange",
-    "working on documentation": "purple",
-    "working on clarification": "brown",
-    "report released": "cyan",
-    "certificate released": "gold",
-    "site audit pending": "gray",
-    "inactive": "red"
   };
 
   async function loadExcel() {
@@ -175,11 +123,11 @@ document.addEventListener("DOMContentLoaded", () => {
         Team: String(row.Team ?? "").trim()
       };
 
-      // ★ CIRCLE MARKERS ONLY
+      // ★ UNIFORM COLOR CIRCLE MARKERS
       const marker = L.circleMarker([lat, lon], {
         radius: 8,
         fillOpacity: 0.9,
-        color: statusColors[data.Status.toLowerCase()] || "black"
+        color: "#007bff"   // << ALL MARKERS WILL BE BLUE
       }).bindPopup(`
         <b>${data.Company}</b><br>
         <b>City:</b> ${data.City}<br>
@@ -238,7 +186,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   Object.values(filters).forEach(f => f.addEventListener("change", applyFilters));
   searchBox.addEventListener("input", applyFilters);
-
   document.getElementById("resetButton").addEventListener("click", () => {
     searchBox.value = "";
     Object.values(filters).forEach(f => f.value = "all");
